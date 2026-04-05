@@ -24,6 +24,9 @@ router.delete('/interview/:id', interviewController.deleteInterview);
 router.get("/getalljobs", interviewController.getAllJobs);
 router.get("/getall/candidates", interviewController.getAllCandidates);
 
+router.post('/recruiter/registration', RecruiterController.registerRecruiter);
+router.get("/recruiters", RecruiterController.getRecruiters);
+router.delete('/recruiter/delete/:id', RecruiterController.deleteRecruiter);
 
 module.exports = router;
 
