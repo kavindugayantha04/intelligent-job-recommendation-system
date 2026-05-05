@@ -1,30 +1,13 @@
-/* ===== RESET ===== */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-/* ===== ROOT ===== */
-html, body, #root {
-  width: 100%;
-  height: 100%;
-}
-
 body {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  background-color: #f5f7fa;
-  color: #222;
-  overflow-x: hidden;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Remove Vite default styles */
-a {
-  text-decoration: none;
-  color: inherit;
-}
-
-button {
-  font-family: inherit;
-  border: none;
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
 }
