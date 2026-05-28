@@ -3,6 +3,82 @@ const Job = require("../models/Job");
 const CandidateProfile = require("../models/CandidateProfile");
 const createLog = require("../utils/createLog");
 
+async function createInterviewRecord({
+  candidateId,
+  jobId,
+  date,
+  time,
+  venue,
+  actorUserId,
+}) {
+  if (!candidateId || !jobId || !date || !time || !venue?.trim()) {
+    const err = new Error("All required fields must be provided.");
+    err.status = 400;
+    throw err;
+  }
+
+  const candidate = await CandidateProfile.findById(candidateId).populate(
+    "userId",
+    "name email"
+  );
+
+  if (!candidate) {
+    const err = new Error("Candidate profile not found.");
+    err.status = 404;
+    throw err;
+  }
+
+  const job = await Job.findById(jobId).select("title");
+  if (!job) {
+    const err = new Error("Job not found.");
+    err.status = 404;
+    throw err;
+  }
+
+  const blockingInterview = await Interview.findOne({
+    candidateId,
+    jobId,
+    status: { $in: ["Upcoming", "Completed"] },
+  });
+
+  if (blockingInterview) {
+    if (blockingInterview.status === "Upcoming") {
+      const err = new Error(
+        "An interview is already scheduled for this candidate for this job."
+      );
+      err.status = 400;
+      throw err;
+    }
+
+    const err = new Error(
+      "This candidate has already completed an interview for this job."
+    );
+    err.status = 400;
+    throw err;
+  }
+
+  const interview = new Interview({
+    candidateId,
+    jobId,
+    date,
+    time,
+    venue: venue.trim(),
+  });
+
+  await interview.save();
+
+  const candidateName = candidate?.userId?.name || "Unknown Candidate";
+  const jobTitle = job?.title || "Unknown Job";
+
+  await createLog(
+    actorUserId,
+    "create",
+    `Created interview for ${candidateName} for job "${jobTitle}" on ${date} at ${time}`
+  );
+
+  return interview;
+}
+
 // GET ALL JOBS
 exports.getAllJobs = async (req, res) => {
   try {
@@ -30,77 +106,54 @@ exports.getAllCandidates = async (req, res) => {
 exports.createInterview = async (req, res) => {
   try {
     const { candidateId, jobId, date, time, venue } = req.body;
-
-    if (!candidateId || !jobId || !date || !time || !venue?.trim()) {
-      return res.status(400).json({
-        message: "All required fields must be provided."
-      });
-    }
-
-    const candidate = await CandidateProfile.findById(candidateId).populate(
-      "userId",
-      "name email"
-    );
-
-    if (!candidate) {
-      return res.status(404).json({
-        message: "Candidate profile not found."
-      });
-    }
-
-    const job = await Job.findById(jobId).select("title");
-
-    if (!job) {
-      return res.status(404).json({
-        message: "Job not found."
-      });
-    }
-
-    const blockingInterview = await Interview.findOne({
-      candidateId,
-      jobId,
-      status: { $in: ["Upcoming", "Completed"] }
-    });
-
-    if (blockingInterview) {
-      if (blockingInterview.status === "Upcoming") {
-        return res.status(400).json({
-          message: "An interview is already scheduled for this candidate for this job."
-        });
-      }
-
-      if (blockingInterview.status === "Completed") {
-        return res.status(400).json({
-          message: "This candidate has already completed an interview for this job."
-        });
-      }
-    }
-
-    const interview = new Interview({
+    const interview = await createInterviewRecord({
       candidateId,
       jobId,
       date,
       time,
-      venue: venue.trim()
+      venue,
+      actorUserId: req.userId,
     });
-
-    await interview.save();
-
-    const candidateName = candidate?.userId?.name || "Unknown Candidate";
-    const jobTitle = job?.title || "Unknown Job";
-
-    await createLog(
-      req.userId,
-      "create",
-      `Created interview for ${candidateName} for job "${jobTitle}" on ${date} at ${time}`
-    );
 
     res.status(201).json({
       message: "Interview created successfully",
-      interview
+      interview,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
+// CANDIDATE SELF-SCHEDULE INTERVIEW
+exports.scheduleMyInterview = async (req, res) => {
+  try {
+    const { jobId, date, time, venue } = req.body;
+
+    const candidateProfile = await CandidateProfile.findOne({
+      userId: req.userId,
+    }).select("_id");
+
+    if (!candidateProfile) {
+      return res.status(404).json({
+        message: "Candidate profile not found.",
+      });
+    }
+
+    const interview = await createInterviewRecord({
+      candidateId: candidateProfile._id,
+      jobId,
+      date,
+      time,
+      venue,
+      actorUserId: req.userId,
+    });
+
+    res.status(201).json({
+      message: "Interview scheduled successfully",
+      interview,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ message: error.message });
   }
 };
 
@@ -145,6 +198,29 @@ exports.getMyScheduledInterviewCount = async (req, res) => {
     res.json({
       scheduledCount
     });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// GET MY INTERVIEWS (candidate)
+exports.getMyInterviews = async (req, res) => {
+  try {
+    const candidateProfile = await CandidateProfile.findOne({
+      userId: req.userId,
+    }).select("_id");
+
+    if (!candidateProfile) {
+      return res.json({ interviews: [] });
+    }
+
+    const interviews = await Interview.find({
+      candidateId: candidateProfile._id,
+    })
+      .populate("jobId", "title category workType experienceLevel")
+      .sort({ date: 1, createdAt: -1 });
+
+    res.json({ interviews });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
