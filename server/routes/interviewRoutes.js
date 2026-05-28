@@ -9,6 +9,7 @@ router.get("/getall/candidates", auth, interviewController.getAllCandidates);
 
 // Interview CRUD
 router.post("/interview/create", auth, interviewController.createInterview);
+router.post("/interview/my/schedule", auth, interviewController.scheduleMyInterview);
 router.get("/interview/all", auth, interviewController.getAllInterviews);
 
 router.get(
@@ -16,6 +17,7 @@ router.get(
   auth,
   interviewController.getMyScheduledInterviewCount
 );
+router.get("/interview/my", auth, interviewController.getMyInterviews);
 
 router.get("/interview/:id", auth, interviewController.getInterviewById);
 router.put("/interview/:id", auth, interviewController.updateInterview);
