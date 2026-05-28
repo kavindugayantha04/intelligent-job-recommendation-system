@@ -2,6 +2,7 @@ const Application = require("../models/Application");
 const Job = require("../models/Job");
 const User = require("../models/User");
 const CandidateProfile = require("../models/CandidateProfile");
+const Interview = require("../models/Interview");
 
 function normalizeText(v) {
   return String(v || "").toLowerCase().trim();
@@ -383,8 +384,52 @@ exports.getMyApplications = async (req, res) => {
       .populate("jobId")
       .sort({ createdAt: -1 });
 
+    const candidateProfile = await CandidateProfile.findOne({ userId: req.userId }).select(
+      "_id"
+    );
+
+    let interviewsByJob = new Map();
+    if (candidateProfile && applications.length > 0) {
+      const jobIds = applications
+        .map((app) => app.jobId?._id)
+        .filter(Boolean);
+
+      const interviews = await Interview.find({
+        candidateId: candidateProfile._id,
+        jobId: { $in: jobIds },
+      }).sort({ date: -1, createdAt: -1 });
+
+      interviewsByJob = interviews.reduce((acc, interview) => {
+        const key = String(interview.jobId);
+        if (!acc.has(key)) acc.set(key, interview);
+        return acc;
+      }, new Map());
+    }
+
+    const enrichedApplications = applications.map((app) => {
+      const appObj = app.toObject();
+      const interview = appObj.jobId?._id
+        ? interviewsByJob.get(String(appObj.jobId._id))
+        : null;
+
+      return {
+        ...appObj,
+        interviewSchedule: interview
+          ? {
+              _id: interview._id,
+              date: interview.date,
+              time: interview.time,
+              venue: interview.venue,
+              status: interview.status,
+              resultStatus: interview.resultStatus,
+              updatedAt: interview.updatedAt,
+            }
+          : null,
+      };
+    });
+
     res.json({
-      applications,
+      applications: enrichedApplications,
     });
   } catch (error) {
     res.status(500).json({
